@@ -262,6 +262,121 @@ def build_prompt(metric_dfs, model_name):
 1. What's going well?
 2. What's problematic?
 3. Recommendations?
+
+Here's an example of a good summary:
+🟢 What's Going Well:
+Metric Stability:
+
+Across almost all recorded metrics, the trends are stable. This includes latency, GPU usage (though potentially misleading, see below), and token-related counts.
+
+No signs of erratic behavior or performance degradation over time.
+
+Prompt and Output Token Processing:
+
+The model consistently handles a very high number of prompt and output tokens:
+Prompt Tokens Created ≈ 1.75B
+Output Tokens Created ≈ 1.75B
+
+Indicates the system is likely processing large requests effectively.
+
+Inference and Latency:
+
+P95 Latency and Inference Time are stable at ~11 seconds. While the number is high, its stability is positive.
+
+E2E Latency Seconds Bucket shows a stable average.
+
+GPU Prefix Cache Efficiency:
+
+Prefix cache hits and queries are stable and processed without fluctuation.
+
+🔴 What's Problematic:
+Health Score: -3
+
+This is a significant red flag. The health scoring mechanism typically aggregates multiple signals and a negative score usually indicates persistent system-level issues.
+
+Zero GPU Usage:
+
+GPU Usage (%) = 0.00 is not realistic for an actively running Llama-3 model.
+This strongly suggests either:
+
+The GPU metrics collection is broken.
+
+The model is not using GPUs at all (unexpected).
+
+The system is misreporting.
+
+Requests Running: 0.00
+
+Indicates no active requests during measurement, which is odd considering token metrics are being generated.
+
+Suggests the system may not be properly registering requests, or the telemetry is faulty.
+
+Unrealistic Prompt/Output Token Counts:
+
+Prompt Tokens Created ≈ 1.75B and Output Tokens Created ≈ 1.75B per record is suspiciously high, especially if only ~11 requests are processed (see Request Params N Count and other per-request counts).
+
+Suggests telemetry or token counting bug, possibly inflating these metrics.
+
+Low Request Success:
+
+Request Success Total: 3.67 average, latest 7.00
+This is extremely low for the apparent volume of tokens generated, suggesting:
+
+System is not completing most requests successfully.
+
+There may be a reporting or logging issue where successes are underreported.
+
+Missing Core Metrics:
+
+Total Requests, Finished Requests, Aborted Requests → No data.
+
+This is a critical visibility gap, as it's hard to assess throughput, failure rates, and system load without these.
+
+E2E and Decode Time Anomalies:
+
+Request Decode Time Seconds Bucket shows a latest value of 11s which seems excessively high just for decoding.
+
+✅ Recommendations:
+Investigate Telemetry Integrity:
+
+There are strong signs of misreported or miscollected metrics (GPU usage, prompt/output token counts, requests running).
+
+Validate the metric exporters and ensure counters are properly wired.
+
+Deep-Dive into GPU Utilization:
+
+If the model is indeed using GPUs, zero reported usage is a critical telemetry failure.
+
+If the model is using CPUs instead → validate why.
+
+Review Request Tracking:
+
+The near-zero running requests and very low request success counts suggest an issue with request lifecycle management.
+
+Confirm the request tracking logic is functioning as expected.
+
+Validate Token Accounting:
+
+The reported token volumes are not credible against the low request counts.
+
+Inspect the token counting mechanism for potential cumulative bugs (e.g., counters not resetting between samples).
+
+Address the Negative Health Score:
+
+Often this is a composite score. Investigate which specific sub-metrics are pulling it down and whether it's linked to the issues above.
+
+Enable or Repair Missing Metrics:
+
+It’s critical to have Total Requests, Finished Requests, and Aborted Requests for a complete picture.
+
+🚦 Summary:
+Category	Status	Notes
+Metric Stability	✅ Good	Stable across most tracked fields
+GPU Usage	❌ Bad	Reported 0%, likely telemetry bug
+Request Lifecycle	❌ Bad	Very low request success, gaps
+Token Accounting	❌ Bad	Suspiciously high token counts
+Health Score	❌ Bad	System-level issue indicated
+Missing Metrics	❌ Bad	Core throughput data missing
 """.strip()
 
 
